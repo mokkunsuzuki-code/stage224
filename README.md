@@ -1,14 +1,14 @@
-# Stage219: Transparency Log History
+# Stage220 – Transparency Monitor (External Verification)
 
-Signed checkpoint history for an append-only transparency log.
+This stage introduces **independent external verification** for the transparency system.
 
-## Overview
+The project now provides a transparency log that can be **audited by third parties**, not only verified internally.
 
-Stage219 extends the transparency checkpoint flow by introducing **checkpoint history** and a **checkpoint index**.
+---
 
-This stage turns the transparency output from a single signed checkpoint into an **append-only transparency log structure**.
+# Transparency Architecture
 
-The resulting chain is:
+The transparency system follows this structure:
 
 Evidence  
 ↓  
@@ -18,220 +18,136 @@ Signed Checkpoint
 ↓  
 Checkpoint History  
 ↓  
-Append-only Transparency Log
+Append-only Transparency Log  
+↓  
+External Transparency Monitor
 
-By preserving sequential checkpoints, Stage219 makes history rewriting detectable through changes in:
+This allows anyone to independently audit the log integrity.
 
-- Merkle roots
-- checkpoint hashes
-- checkpoint ordering
-- linked previous checkpoint hashes
-- signatures
+---
 
-## Why this stage matters
+# What Stage220 Adds
 
-In Stage218, the project could generate a signed checkpoint for one transparency state.
+Stage220 introduces a new tool:
 
-In Stage219, the project keeps a **history of checkpoints**, which means the transparency log is no longer just a snapshot. It becomes a sequential structure with traceable evolution over time.
 
-This is important because an append-only log is stronger than a one-time commitment:
+tools/external_monitor.py
 
-- past states remain visible
-- ordering becomes explicit
-- tampering with history becomes easier to detect
-- checkpoint continuity can be audited
 
-From a research perspective, this stage shows an understanding of transparency log design beyond simple artifact generation.
+This tool allows **third-party verification** of the transparency log.
 
-## Repository structure
+It verifies:
 
-```text
+- checkpoint history integrity  
+- Merkle root consistency  
+- append-only behavior of the transparency log  
+- consistency between `checkpoint.json`, `root.txt`, and checkpoint history  
+
+This represents an important step from **self-verification** to **independent verification**.
+
+---
+
+# Transparency Files
+
+The transparency system generates the following artifacts.
+
+
 out/transparency/
-├─ checkpoint.json
-├─ checkpoint_index.json
-├─ history/
-│  ├─ checkpoint_0001.json
-│  ├─ checkpoint_0002.json
-│  └─ checkpoint_0003.json
-├─ inclusion_proofs/
-│  ├─ out__ci__actions_jobs.json.proof.json
-│  ├─ out__ci__actions_runs.json.proof.json
-│  ├─ out__logs__downgrade_attack.log.proof.json
-│  ├─ out__logs__fail_closed.log.proof.json
-│  ├─ out__logs__replay_attack.log.proof.json
-│  └─ out__logs__session_integrity.log.proof.json
-├─ merkle_tree.json
-├─ root.txt
-└─ transparency_log.json
-New outputs in Stage219
-1. Checkpoint history
+├── transparency_log.json
+├── merkle_tree.json
+├── root.txt
+├── checkpoint.json
+├── checkpoint_index.json
+├── history/
+│ ├── checkpoint_0001.json
+│ ├── checkpoint_0002.json
+│ └── checkpoint_0003.json
+└── inclusion_proofs/
 
-Sequential checkpoint files are stored under:
 
-out/transparency/history/
+These files together form an **append-only transparency log**.
 
-Example:
+---
 
-checkpoint_0001.json
-checkpoint_0002.json
-checkpoint_0003.json
+# External Transparency Monitor
 
-Each checkpoint contains:
+The external monitor verifies the transparency state from an independent perspective.
 
-log_id
+Run the monitor:
 
-sequence
 
-sequence_label
+python3 tools/external_monitor.py
 
-timestamp
 
-entry_count
+Example output:
 
-merkle_root
 
-root_hash_algorithm
+[OK] wrote: out/monitor/monitor_report.json
+[OK] history files: 3
+[OK] external monitor passed
 
-previous_checkpoint_file
 
-previous_checkpoint_hash
+The generated report:
 
-artifacts
 
-merkle_tree_levels
+out/monitor/monitor_report.json
 
-leaf_count
 
-signed_by
+The report contains:
 
-signature_algorithm
+- checkpoint history verification
+- Merkle root comparison
+- append-only checks
+- consistency validation
 
-signature
+---
 
-checkpoint_hash
+# Research Significance
 
-2. Checkpoint index
+Previous stages introduced transparency components:
 
-The repository also generates:
+| Stage | Feature |
+|------|--------|
+| Stage218 | Transparency checkpoint |
+| Stage219 | Checkpoint history |
+| Stage220 | External verification monitor |
 
-out/transparency/checkpoint_index.json
+Stage220 enables **independent auditability**, which is essential for credible transparency systems.
 
-Example:
+The progression is:
 
-{
-  "log_id": "qsp-transparency-log",
-  "checkpoints": [
-    "checkpoint_0001.json",
-    "checkpoint_0002.json",
-    "checkpoint_0003.json"
-  ]
-}
+Self verification  
+↓  
+Independent verification
 
-This makes the history easier to enumerate and audit.
+---
 
-Security meaning
+# Why External Monitoring Matters
 
-Stage219 strengthens transparency by making the checkpoint flow historical rather than singular.
+Without external verification, a system can only claim:
 
-If an attacker attempts to rewrite earlier history, the following become inconsistent:
+> "The project verified its own logs."
 
-Merkle root continuity
+With Stage220, the project enables:
 
-checkpoint sequence
+**Anyone can audit the log.**
 
-previous checkpoint linkage
+This aligns with the core philosophy behind transparency systems used in:
 
-checkpoint hash chain
+- Certificate Transparency
+- Software supply chain transparency
+- Reproducible security research
 
-signature-bound checkpoint content
+---
 
-This does not yet implement a full public CT-style ecosystem, but it establishes the core append-only log structure needed for later extensions such as:
+# Repository
 
-consistency proofs
+GitHub:
 
-external monitors
+https://github.com/mokkunsuzuki-code/stage220
 
-witness verification
+---
 
-replicated log verification
-
-How it works
-
-Stage219 reuses the transparency artifacts produced by the prior checkpoint flow and then appends a new historical checkpoint.
-
-Process:
-
-Build transparency artifacts
-
-Build or refresh the current checkpoint
-
-Create the next sequential history file
-
-Link it to the previous checkpoint via hash
-
-Update checkpoint_index.json
-
-Mirror the latest checkpoint to out/transparency/checkpoint.json
-
-Run
-cd ~/Desktop/test/stage219
-rm -rf out/transparency
-./tools/run_stage219_history.sh
-
-To append more checkpoints:
-
-./tools/run_stage219_history.sh
-./tools/run_stage219_history.sh
-Verify outputs
-find out/transparency -maxdepth 3 -type f | sort
-
-Check the index:
-
-cat out/transparency/checkpoint_index.json
-
-Check the latest checkpoint:
-
-cat out/transparency/checkpoint.json
-
-Check a historical checkpoint:
-
-cat out/transparency/history/checkpoint_0003.json
-Example result
-
-The generated history demonstrates:
-
-ordered checkpoints
-
-linked previous checkpoint hashes
-
-stable Merkle-root-based transparency state
-
-append-only checkpoint accumulation
-
-This gives the project a stronger audit narrative:
-
-Evidence
-→ Merkle commitment
-→ signed checkpoint
-→ checkpoint history
-→ append-only transparency log
-
-Notes
-
-The current signature field uses a deterministic placeholder signing method for structural demonstration.
-
-This is sufficient for Stage219 because the main goal is to establish history linkage and append-only transparency structure.
-
-A later stage can replace this with full asymmetric signing and independent verification tooling.
-
-Scripts added in Stage219
-
-tools/build_transparency_log_history.py
-
-tools/run_stage219_history.sh
-
-License
+# License
 
 MIT License
-
-Copyright (c) 2025 Motohiro Suzuki
